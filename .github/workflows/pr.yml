@@ -1,0 +1,66 @@
+name: pr
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+  packages: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v6
+      -
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      -
+        run: make lint
+      -
+        name: Check for lint changes
+        id: detect-changes
+        run: |
+          if [ -n "$(git status -s)" ]; then
+            echo "detected=true" | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "detected=false" | tee -a "$GITHUB_OUTPUT"
+          fi
+      -
+        name: Fail if changes
+        if: ${{ steps.detect-changes.outputs.detected == 'true' }}
+        run: |
+          >&2 echo "Changes detected"
+          git status -s
+          exit 1
+      -
+        run: |
+          make unit-test
+
+  pr-ready:
+    if: always()
+    needs:
+      - lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Validate jobs
+        if: ${{ contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'failure') }}
+        run: |
+          echo "::error title=${{ github.workflow }}::at least one job failed or cancelled"
+          exit 1
