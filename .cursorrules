@@ -1,0 +1,142 @@
+# Cursor Rules for humaserverless
+
+## Project Overview
+This is a Go library for building serverless HTTP APIs using AWS Lambda and Huma v2. The library provides utilities for converting between AWS Lambda events and HTTP requests/responses.
+
+## Code Style & Conventions
+
+### Go Standards
+- Follow standard Go formatting (`go fmt`)
+- Use `gofmt` style (tabs for indentation, spaces for alignment)
+- Prefer explicit error handling over panics
+- Use meaningful variable names
+- Keep functions focused and small
+- Document exported functions and types with comments
+
+### Naming Conventions
+- Use PascalCase for exported types and functions
+- Use camelCase for unexported types and functions
+- Use descriptive names that explain purpose
+- Test functions: `TestFunctionName` with subtests using `t.Run("descriptive-kebab-case-name", ...)`
+
+### Error Handling
+- Always handle errors explicitly
+- Return errors from functions when operations can fail
+- Use `require` from testify for critical test assertions that should stop execution
+- Use `assert` from testify for non-critical test assertions
+
+## Testing Standards
+
+### Test Structure
+- Use `testify/assert` and `testify/require` packages
+- Use `t.Run()` for subtests with descriptive kebab-case names (e.g., "handles-empty-headers")
+- Group related tests in the same test function
+- Test both success and error cases
+- Test edge cases (empty values, nil values, large inputs, etc.)
+
+### Test Naming
+- Test functions: `TestFunctionName`
+- Subtest names: use kebab-case with descriptive names (e.g., "converts-basic-get-request")
+- Be specific about what each test verifies
+
+### Test Coverage
+- Aim for comprehensive test coverage
+- Test all public functions
+- Test error paths
+- Test boundary conditions
+- Test with realistic AWS Lambda event structures
+
+## AWS Lambda Patterns
+
+### Event Handling
+- Always handle `events.APIGatewayV2HTTPRequest` and return `events.APIGatewayV2HTTPResponse`
+- Convert Lambda events to standard HTTP requests using `HttpEventToRequest`
+- Convert HTTP responses to Lambda events using `ResponseToHttpEvent`
+- Handle conversion errors gracefully (return 500 status code)
+
+### Context Usage
+- Always accept `context.Context` as the first parameter
+- Pass context through to downstream calls
+- Use context for cancellation and timeouts when appropriate
+
+## Common Pitfalls to Avoid
+
+### Closure Issues
+- **CRITICAL**: When creating closures in loops, always capture loop variables in local variables
+- Example of WRONG pattern:
+  ```go
+  for i := 0; i < len(items); i++ {
+      funcs[i] = func() {
+          use(items[i])  // ❌ BUG: all closures see the same final value
+      }
+  }
+  ```
+- Example of CORRECT pattern:
+  ```go
+  for i := 0; i < len(items); i++ {
+      item := items[i]  // ✅ Capture the value
+      funcs[i] = func() {
+          use(item)
+      }
+  }
+  ```
+
+### Middleware Patterns
+- When chaining middlewares, ensure proper closure handling
+- Capture current chain value before reassigning in loops
+- Test middleware execution order
+- Test middleware that short-circuits (doesn't call next)
+
+### Type Aliases
+- Use type aliases for function types (e.g., `HttpHandlerFunc`, `HttpMiddleware`)
+- This improves readability and type safety
+
+## Dependencies
+
+### Core Dependencies
+- `github.com/aws/aws-lambda-go/events` - AWS Lambda event types
+- `github.com/danielgtaylor/huma/v2` - Huma API framework
+- `github.com/stretchr/testify` - Testing utilities
+
+### Import Organization
+- Standard library imports first
+- Third-party imports second
+- Local imports last
+- Group imports with blank lines between groups
+
+## File Organization
+
+### File Naming
+- Use descriptive names that match the primary functionality
+- Test files: `*_test.go`
+- Keep related functionality in the same file
+
+### Package Structure
+- All code in `package humaserverless`
+- Export only what needs to be used by consumers
+- Keep internal implementation details unexported
+
+## Code Review Checklist
+
+Before submitting code, ensure:
+- [ ] All tests pass (`make unit-test`)
+- [ ] Code is formatted (`go fmt`)
+- [ ] No linter errors (`go vet`)
+- [ ] Tests cover new functionality
+- [ ] Error cases are handled
+- [ ] No closure bugs in loops
+- [ ] Context is properly passed through
+- [ ] AWS Lambda event structures are handled correctly
+
+## Build & Test Commands
+
+- `make unit-test` - Run all unit tests
+- `make tidy` - Tidy go.mod dependencies
+- `make lint` - Run go vet and go fmt
+
+## Documentation
+
+- Document exported functions with comments
+- Explain complex logic with inline comments
+- Keep README.md updated with usage examples
+- Document any breaking changes
